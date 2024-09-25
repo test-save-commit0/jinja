@@ -43,7 +43,9 @@ V = t.TypeVar('V')
 def ignore_case(value: V) ->V:
     """For use as a postprocessor for :func:`make_attrgetter`. Converts strings
     to lowercase and returns other types as-is."""
-    pass
+    if isinstance(value, str):
+        return value.lower()
+    return value
 
 
 def make_attrgetter(environment: 'Environment', attribute: t.Optional[t.
@@ -54,7 +56,21 @@ def make_attrgetter(environment: 'Environment', attribute: t.Optional[t.
     to access attributes of attributes.  Integer parts in paths are
     looked up as integers.
     """
-    pass
+    if attribute is None:
+        return lambda x: x
+    if isinstance(attribute, int):
+        return lambda x: environment.getitem(x, attribute)
+    if '.' not in attribute:
+        return lambda x: environment.getattr(x, attribute, default)
+    
+    def getter(x):
+        for part in attribute.split('.'):
+            if part.isdigit():
+                x = environment.getitem(x, int(part))
+            else:
+                x = environment.getattr(x, part, default)
+        return x if postprocess is None else postprocess(x)
+    return getter
 
 
 def make_multi_attrgetter(environment: 'Environment', attribute: t.Optional
@@ -70,12 +86,22 @@ def make_multi_attrgetter(environment: 'Environment', attribute: t.Optional
 
     Examples of attribute: "attr1,attr2", "attr1.inner1.0,attr2.inner2.0", etc.
     """
-    pass
+    if attribute is None:
+        return lambda x: [x]
+    
+    getters = [make_attrgetter(environment, attr.strip(), postprocess)
+               for attr in attribute.split(',')]
+    
+    def getter(x):
+        return [g(x) for g in getters]
+    return getter
 
 
 def do_forceescape(value: 't.Union[str, HasHTML]') ->Markup:
     """Enforce HTML escaping.  This will probably double escape variables."""
-    pass
+    if hasattr(value, '__html__'):
+        value = value.__html__()
+    return Markup(escape(str(value)))
 
 
 def do_urlencode(value: t.Union[str, t.Mapping[str, t.Any], t.Iterable[t.
@@ -95,7 +121,16 @@ def do_urlencode(value: t.Union[str, t.Mapping[str, t.Any], t.Iterable[t.
 
     .. versionadded:: 2.7
     """
-    pass
+    from urllib.parse import quote, urlencode
+
+    if isinstance(value, str):
+        return quote(value, safe='/')
+    elif isinstance(value, t.Mapping):
+        return urlencode(value)
+    elif isinstance(value, t.Iterable):
+        return urlencode(list(value))
+    else:
+        raise TypeError("Expected string, mapping, or iterable")
 
 
 @pass_eval_context
