@@ -107,7 +107,9 @@ class Node(metaclass=NodeType):
         parameter or to exclude some using the `exclude` parameter.  Both
         should be sets or tuples of field names.
         """
-        pass
+        for name in self.fields:
+            if (exclude is None or name not in exclude) and (only is None or name in only):
+                yield name, getattr(self, name)
 
     def iter_child_nodes(self, exclude: t.Optional[t.Container[str]]=None,
         only: t.Optional[t.Container[str]]=None) ->t.Iterator['Node']:
@@ -115,20 +117,35 @@ class Node(metaclass=NodeType):
         over all fields and yields the values of they are nodes.  If the value
         of a field is a list all the nodes in that list are returned.
         """
-        pass
+        for _, field in self.iter_fields(exclude, only):
+            if isinstance(field, Node):
+                yield field
+            elif isinstance(field, list):
+                for item in field:
+                    if isinstance(item, Node):
+                        yield item
 
     def find(self, node_type: t.Type[_NodeBound]) ->t.Optional[_NodeBound]:
         """Find the first node of a given type.  If no such node exists the
         return value is `None`.
         """
-        pass
+        for child in self.iter_child_nodes():
+            if isinstance(child, node_type):
+                return child
+            result = child.find(node_type)
+            if result is not None:
+                return result
+        return None
 
     def find_all(self, node_type: t.Union[t.Type[_NodeBound], t.Tuple[t.
         Type[_NodeBound], ...]]) ->t.Iterator[_NodeBound]:
         """Find all the nodes of a given type.  If the type is a tuple,
         the check is performed for any of the tuple items.
         """
-        pass
+        for child in self.iter_child_nodes():
+            if isinstance(child, node_type):
+                yield child
+            yield from child.find_all(node_type)
 
     def set_ctx(self, ctx: str) ->'Node':
         """Reset the context of a node and all child nodes.  Per default the
@@ -136,15 +153,26 @@ class Node(metaclass=NodeType):
         most common one.  This method is used in the parser to set assignment
         targets and other nodes to a store context.
         """
-        pass
+        if 'ctx' in self.fields:
+            self.ctx = ctx
+        for child in self.iter_child_nodes():
+            child.set_ctx(ctx)
+        return self
 
     def set_lineno(self, lineno: int, override: bool=False) ->'Node':
         """Set the line numbers of the node and children."""
-        pass
+        if not hasattr(self, 'lineno') or override:
+            self.lineno = lineno
+        for child in self.iter_child_nodes():
+            child.set_lineno(lineno, override)
+        return self
 
     def set_environment(self, environment: 'Environment') ->'Node':
         """Set the environment for all nodes."""
-        pass
+        self.environment = environment
+        for child in self.iter_child_nodes():
+            child.set_environment(environment)
+        return self
 
     def __eq__(self, other: t.Any) ->bool:
         if type(self) is not type(other):
@@ -340,11 +368,11 @@ class Expr(Node):
         .. versionchanged:: 2.4
            the `eval_ctx` parameter was added.
         """
-        pass
+        raise Impossible()
 
     def can_assign(self) ->bool:
         """Check if it's possible to assign something to this node."""
-        pass
+        return False
 
 
 class BinExpr(Expr):
@@ -405,7 +433,17 @@ class Const(Literal):
         constant value in the generated code, otherwise it will raise
         an `Impossible` exception.
         """
-        pass
+        if isinstance(value, (bool, int, float, str, type(None))):
+            return cls(value, lineno=lineno, environment=environment)
+        elif isinstance(value, (list, tuple)):
+            items = [cls.from_untrusted(item, lineno, environment) for item in value]
+            return cls(type(value)(item.value for item in items), lineno=lineno, environment=environment)
+        elif isinstance(value, dict):
+            items = {cls.from_untrusted(k, lineno, environment).value: 
+                     cls.from_untrusted(v, lineno, environment).value 
+                     for k, v in value.items()}
+            return cls(items, lineno=lineno, environment=environment)
+        raise Impossible(f"Cannot convert {type(value)} to Const")
 
 
 class TemplateData(Literal):
