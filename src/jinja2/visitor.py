@@ -30,15 +30,19 @@ class NodeVisitor:
         exists for this node.  In that case the generic visit function is
         used instead.
         """
-        pass
+        method = 'visit_' + node.__class__.__name__
+        return getattr(self, method, None)
 
     def visit(self, node: Node, *args: t.Any, **kwargs: t.Any) ->t.Any:
         """Visit a node."""
-        pass
+        f = self.get_visitor(node)
+        if f is not None:
+            return f(node, *args, **kwargs)
+        return self.generic_visit(node, *args, **kwargs)
 
     def generic_visit(self, node: Node, *args: t.Any, **kwargs: t.Any) ->t.Any:
         """Called if no explicit visitor function exists for a node."""
-        pass
+        return node
 
 
 class NodeTransformer(NodeVisitor):
@@ -52,9 +56,16 @@ class NodeTransformer(NodeVisitor):
     replacement takes place.
     """
 
-    def visit_list(self, node: Node, *args: t.Any, **kwargs: t.Any) ->t.List[
-        Node]:
+    def visit_list(self, node: Node, *args: t.Any, **kwargs: t.Any) ->t.List[Node]:
         """As transformers may return lists in some places this method
         can be used to enforce a list as return value.
         """
-        pass
+        result = []
+        for child in node:
+            new_node = self.visit(child, *args, **kwargs)
+            if new_node is not None:
+                if isinstance(new_node, list):
+                    result.extend(new_node)
+                else:
+                    result.append(new_node)
+        return result
