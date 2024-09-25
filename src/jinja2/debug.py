@@ -20,7 +20,25 @@ def rewrite_traceback_stack(source: t.Optional[str]=None) ->BaseException:
         known.
     :return: The original exception with the rewritten traceback.
     """
-    pass
+    exc_type, exc_value, tb = sys.exc_info()
+    if isinstance(exc_value, TemplateSyntaxError) and source is not None:
+        exc_value.source = source
+    
+    while tb is not None:
+        if tb.tb_frame.f_code.co_filename == '<template>':
+            filename = exc_value.filename
+            lineno = exc_value.lineno
+            
+            # Create a fake traceback
+            new_tb = fake_traceback(exc_value, tb, filename, lineno)
+            
+            # Replace the old traceback with the new one
+            exc_value.__traceback__ = new_tb
+            break
+        
+        tb = tb.tb_next
+    
+    return exc_value
 
 
 def fake_traceback(exc_value: BaseException, tb: t.Optional[TracebackType],
@@ -37,7 +55,37 @@ def fake_traceback(exc_value: BaseException, tb: t.Optional[TracebackType],
     :param filename: The template filename.
     :param lineno: The line number in the template source.
     """
-    pass
+    if tb is None:
+        raise exc_value
+
+    locals = get_template_locals(tb.tb_frame.f_locals)
+    globals = tb.tb_frame.f_globals
+
+    # Create a fake code object
+    code = CodeType(
+        0,                      # argcount
+        0,                      # kwonlyargcount
+        0,                      # nlocals
+        0,                      # stacksize
+        0,                      # flags
+        b'',                    # bytecode
+        (),                     # constants
+        (),                     # names
+        (),                     # varnames
+        filename,               # filename
+        '<template>',           # name
+        lineno,                 # firstlineno
+        b'',                    # lnotab
+        (),                     # freevars
+        ()                      # cellvars
+    )
+
+    # Create a fake frame
+    fake_frame = tb.tb_frame.__class__(code, globals, locals)
+    fake_frame.f_lineno = lineno
+
+    # Create a new traceback object
+    return TracebackType(None, fake_frame, fake_frame.f_lasti, fake_frame.f_lineno)
 
 
 def get_template_locals(real_locals: t.Mapping[str, t.Any]) ->t.Dict[str, t.Any
@@ -45,4 +93,12 @@ def get_template_locals(real_locals: t.Mapping[str, t.Any]) ->t.Dict[str, t.Any
     """Based on the runtime locals, get the context that would be
     available at that point in the template.
     """
-    pass
+    context = real_locals.get('context')
+    if isinstance(context, Context):
+        return {
+            'context': context,
+            'environment': context.environment,
+            'resolver': context.environment.resolver,
+            **context.get_all()
+        }
+    return {}
