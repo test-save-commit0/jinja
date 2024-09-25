@@ -47,7 +47,9 @@ class Parser:
         line number or last line number as well as the current name and
         filename.
         """
-        pass
+        if lineno is None:
+            lineno = self.stream.current.lineno
+        raise exc(msg, lineno, self.name, self.filename)
 
     def fail_unknown_tag(self, name: str, lineno: t.Optional[int]=None
         ) ->'te.NoReturn':
@@ -55,26 +57,54 @@ class Parser:
         with a human readable error message that could help to identify
         the problem.
         """
-        pass
+        if lineno is None:
+            lineno = self.stream.current.lineno
+        if name in ('endif', 'endfor', 'endblock', 'endmacro', 'endcall'):
+            self.fail(f'Unexpected end of block tag {name!r}', lineno)
+        elif name in _statement_keywords:
+            self.fail(f'Block tag {name!r} expected', lineno)
+        self.fail(f'Unknown tag {name!r}', lineno)
 
     def fail_eof(self, end_tokens: t.Optional[t.Tuple[str, ...]]=None,
         lineno: t.Optional[int]=None) ->'te.NoReturn':
         """Like fail_unknown_tag but for end of template situations."""
-        pass
+        if end_tokens is not None:
+            expected = ' or '.join(repr(x) for x in end_tokens)
+            msg = f'Unexpected end of template. Expected {expected}.'
+        else:
+            msg = 'Unexpected end of template.'
+        self.fail(msg, lineno)
 
     def is_tuple_end(self, extra_end_rules: t.Optional[t.Tuple[str, ...]]=None
         ) ->bool:
         """Are we at the end of a tuple?"""
-        pass
+        if self.stream.current.type in ('variable_end', 'block_end', 'rparen'):
+            return True
+        if extra_end_rules is not None:
+            return self.stream.current.test_any(extra_end_rules)
+        return False
 
     def free_identifier(self, lineno: t.Optional[int]=None
         ) ->nodes.InternalName:
         """Return a new free identifier as :class:`~jinja2.nodes.InternalName`."""
-        pass
+        self._last_identifier += 1
+        rv = object.__new__(nodes.InternalName)
+        rv.name = f'fi{self._last_identifier}'
+        rv.lineno = lineno
+        return rv
 
     def parse_statement(self) ->t.Union[nodes.Node, t.List[nodes.Node]]:
         """Parse a single statement."""
-        pass
+        token = self.stream.current
+        if token.type != 'name':
+            return self.parse_expression()
+        if token.value in _statement_keywords:
+            return getattr(self, f'parse_{token.value}')()
+        if token.value == 'call':
+            return self.parse_call_block()
+        if token.value == 'filter':
+            return self.parse_filter_block()
+        return self.parse_expression()
 
     def parse_statements(self, end_tokens: t.Tuple[str, ...], drop_needle:
         bool=False) ->t.List[nodes.Node]:
@@ -87,7 +117,20 @@ class Parser:
         the call is the matched end token.  If this is not wanted `drop_needle`
         can be set to `True` and the end token is removed.
         """
-        pass
+        result = []
+        while 1:
+            if self.stream.current.type == 'data':
+                result.append(nodes.Output([self.parse_tuple(with_condexpr=True)]))
+            elif self.stream.current.type == 'block_begin':
+                self.stream.next()
+                if self.stream.current.test_any(end_tokens):
+                    if drop_needle:
+                        self.stream.next()
+                    return result
+                result.append(self.parse_statement())
+            else:
+                break
+        self.fail_eof(end_tokens)
 
     def parse_set(self) ->t.Union[nodes.Assign, nodes.AssignBlock]:
         """Parse an assign statement."""
