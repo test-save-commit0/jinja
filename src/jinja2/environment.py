@@ -68,19 +68,28 @@ def get_spontaneous_environment(cls: t.Type[_env_bound], *args: t.Any
     :param cls: Environment class to create.
     :param args: Positional arguments passed to environment.
     """
-    pass
+    return cls(*args)
 
 
 def create_cache(size: int) ->t.Optional[t.MutableMapping[t.Tuple[
     'weakref.ref[t.Any]', str], 'Template']]:
     """Return the cache class for the given size."""
-    pass
+    if size == 0:
+        return None
+    if size < 0:
+        return {}
+    return LRUCache(size)
 
 
 def copy_cache(cache: t.Optional[t.MutableMapping[t.Any, t.Any]]) ->t.Optional[
     t.MutableMapping[t.Tuple['weakref.ref[t.Any]', str], 'Template']]:
     """Create an empty copy of the given cache."""
-    pass
+    if cache is None:
+        return None
+    elif isinstance(cache, LRUCache):
+        return LRUCache(cache.capacity)
+    else:
+        return {}
 
 
 def load_extensions(environment: 'Environment', extensions: t.Sequence[t.
@@ -88,12 +97,39 @@ def load_extensions(environment: 'Environment', extensions: t.Sequence[t.
     """Load the extensions from the list and bind it to the environment.
     Returns a dict of instantiated extensions.
     """
-    pass
+    result = {}
+    for extension in extensions:
+        if isinstance(extension, str):
+            extension = import_string(extension)
+        if isinstance(extension, type):
+            extension = extension(environment)
+        result[extension.identifier] = extension
+    return result
 
 
 def _environment_config_check(environment: 'Environment') ->'Environment':
     """Perform a sanity check on the environment."""
-    pass
+    if not isinstance(environment.block_start_string, str):
+        raise TypeError('block_start_string must be a string')
+    if not isinstance(environment.block_end_string, str):
+        raise TypeError('block_end_string must be a string')
+    if not isinstance(environment.variable_start_string, str):
+        raise TypeError('variable_start_string must be a string')
+    if not isinstance(environment.variable_end_string, str):
+        raise TypeError('variable_end_string must be a string')
+    if not isinstance(environment.comment_start_string, str):
+        raise TypeError('comment_start_string must be a string')
+    if not isinstance(environment.comment_end_string, str):
+        raise TypeError('comment_end_string must be a string')
+    if not isinstance(environment.line_statement_prefix, (str, type(None))):
+        raise TypeError('line_statement_prefix must be a string or None')
+    if not isinstance(environment.line_comment_prefix, (str, type(None))):
+        raise TypeError('line_comment_prefix must be a string or None')
+    if not isinstance(environment.trim_blocks, bool):
+        raise TypeError('trim_blocks must be a boolean')
+    if not isinstance(environment.lstrip_blocks, bool):
+        raise TypeError('lstrip_blocks must be a boolean')
+    return environment
 
 
 class Environment:
