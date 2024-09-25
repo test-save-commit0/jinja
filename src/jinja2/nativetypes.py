@@ -1,4 +1,5 @@
 import typing as t
+import sys
 from ast import literal_eval
 from ast import parse
 from itertools import chain
@@ -21,7 +22,16 @@ def native_concat(values: t.Iterable[t.Any]) ->t.Optional[t.Any]:
 
     :param values: Iterable of outputs to concatenate.
     """
-    pass
+    result = list(values)
+    if not result:
+        return None
+    if len(result) == 1:
+        return result[0]
+    
+    try:
+        return literal_eval("".join(str(v) for v in result))
+    except (ValueError, SyntaxError):
+        return "".join(str(v) for v in result)
 
 
 class NativeCodeGenerator(CodeGenerator):
@@ -46,7 +56,12 @@ class NativeTemplate(Template):
         with :func:`ast.literal_eval`, the parsed value is returned.
         Otherwise, the string is returned.
         """
-        pass
+        ctx = self.new_context(dict(*args, **kwargs))
+        try:
+            return self.environment.concat(self.root_render_func(ctx))
+        except Exception:
+            exc_info = sys.exc_info()
+            return self.environment.handle_exception(exc_info, True)
 
 
 NativeEnvironment.template_class = NativeTemplate
