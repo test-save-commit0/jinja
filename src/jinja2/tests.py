@@ -11,17 +11,17 @@ if t.TYPE_CHECKING:
 
 def test_odd(value: int) ->bool:
     """Return true if the variable is odd."""
-    pass
+    return value % 2 != 0
 
 
 def test_even(value: int) ->bool:
     """Return true if the variable is even."""
-    pass
+    return value % 2 == 0
 
 
 def test_divisibleby(value: int, num: int) ->bool:
     """Check if a variable is divisible by a number."""
-    pass
+    return value % num == 0
 
 
 def test_defined(value: t.Any) ->bool:
@@ -38,12 +38,12 @@ def test_defined(value: t.Any) ->bool:
     See the :func:`default` filter for a simple way to set undefined
     variables.
     """
-    pass
+    return not isinstance(value, Undefined)
 
 
 def test_undefined(value: t.Any) ->bool:
     """Like :func:`defined` but the other way round."""
-    pass
+    return isinstance(value, Undefined)
 
 
 @pass_environment
@@ -61,7 +61,7 @@ def test_filter(env: 'Environment', value: str) ->bool:
 
     .. versionadded:: 3.0
     """
-    pass
+    return value in env.filters
 
 
 @pass_environment
@@ -83,12 +83,12 @@ def test_test(env: 'Environment', value: str) ->bool:
 
     .. versionadded:: 3.0
     """
-    pass
+    return value in env.tests
 
 
 def test_none(value: t.Any) ->bool:
     """Return true if the variable is none."""
-    pass
+    return value is None
 
 
 def test_boolean(value: t.Any) ->bool:
@@ -96,7 +96,7 @@ def test_boolean(value: t.Any) ->bool:
 
     .. versionadded:: 2.11
     """
-    pass
+    return isinstance(value, bool)
 
 
 def test_false(value: t.Any) ->bool:
@@ -104,7 +104,7 @@ def test_false(value: t.Any) ->bool:
 
     .. versionadded:: 2.11
     """
-    pass
+    return value is False
 
 
 def test_true(value: t.Any) ->bool:
@@ -112,7 +112,7 @@ def test_true(value: t.Any) ->bool:
 
     .. versionadded:: 2.11
     """
-    pass
+    return value is True
 
 
 def test_integer(value: t.Any) ->bool:
@@ -120,7 +120,7 @@ def test_integer(value: t.Any) ->bool:
 
     .. versionadded:: 2.11
     """
-    pass
+    return isinstance(value, int)
 
 
 def test_float(value: t.Any) ->bool:
@@ -128,22 +128,22 @@ def test_float(value: t.Any) ->bool:
 
     .. versionadded:: 2.11
     """
-    pass
+    return isinstance(value, float)
 
 
 def test_lower(value: str) ->bool:
     """Return true if the variable is lowercased."""
-    pass
+    return isinstance(value, str) and value.islower()
 
 
 def test_upper(value: str) ->bool:
     """Return true if the variable is uppercased."""
-    pass
+    return isinstance(value, str) and value.isupper()
 
 
 def test_string(value: t.Any) ->bool:
     """Return true if the object is a string."""
-    pass
+    return isinstance(value, str)
 
 
 def test_mapping(value: t.Any) ->bool:
@@ -151,19 +151,19 @@ def test_mapping(value: t.Any) ->bool:
 
     .. versionadded:: 2.6
     """
-    pass
+    return isinstance(value, abc.Mapping)
 
 
 def test_number(value: t.Any) ->bool:
     """Return true if the variable is a number."""
-    pass
+    return isinstance(value, Number)
 
 
 def test_sequence(value: t.Any) ->bool:
     """Return true if the variable is a sequence. Sequences are variables
     that are iterable.
     """
-    pass
+    return isinstance(value, (abc.Sequence, abc.Set)) and not isinstance(value, str)
 
 
 def test_sameas(value: t.Any, other: t.Any) ->bool:
@@ -176,17 +176,21 @@ def test_sameas(value: t.Any, other: t.Any) ->bool:
             the foo attribute really is the `False` singleton
         {% endif %}
     """
-    pass
+    return value is other
 
 
 def test_iterable(value: t.Any) ->bool:
     """Check if it's possible to iterate over an object."""
-    pass
+    try:
+        iter(value)
+        return True
+    except TypeError:
+        return False
 
 
 def test_escaped(value: t.Any) ->bool:
     """Check if the value is escaped."""
-    pass
+    return hasattr(value, '__html__')
 
 
 def test_in(value: t.Any, seq: t.Container[t.Any]) ->bool:
@@ -194,7 +198,7 @@ def test_in(value: t.Any, seq: t.Container[t.Any]) ->bool:
 
     .. versionadded:: 2.10
     """
-    pass
+    return value in seq
 
 
 TESTS = {'odd': test_odd, 'even': test_even, 'divisibleby':
