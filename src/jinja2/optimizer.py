@@ -17,10 +17,68 @@ if t.TYPE_CHECKING:
 def optimize(node: nodes.Node, environment: 'Environment') ->nodes.Node:
     """The context hint can be used to perform an static optimization
     based on the context given."""
-    pass
+    optimizer = Optimizer(environment)
+    return optimizer.visit(node)
 
 
 class Optimizer(NodeTransformer):
 
     def __init__(self, environment: 't.Optional[Environment]') ->None:
         self.environment = environment
+
+    def visit_Const(self, node: nodes.Const) ->nodes.Node:
+        """Optimize constant nodes."""
+        return node
+
+    def visit_List(self, node: nodes.List) ->nodes.Node:
+        """Optimize list nodes."""
+        node.items = [self.visit(item) for item in node.items]
+        return node
+
+    def visit_Dict(self, node: nodes.Dict) ->nodes.Node:
+        """Optimize dict nodes."""
+        node.items = [(self.visit(key), self.visit(value)) for key, value in node.items]
+        return node
+
+    def visit_Getitem(self, node: nodes.Getitem) ->nodes.Node:
+        """Optimize getitem nodes."""
+        node.node = self.visit(node.node)
+        node.arg = self.visit(node.arg)
+        return node
+
+    def visit_Getattr(self, node: nodes.Getattr) ->nodes.Node:
+        """Optimize getattr nodes."""
+        node.node = self.visit(node.node)
+        return node
+
+    def visit_Call(self, node: nodes.Call) ->nodes.Node:
+        """Optimize call nodes."""
+        node.node = self.visit(node.node)
+        node.args = [self.visit(arg) for arg in node.args]
+        node.kwargs = [(key, self.visit(value)) for key, value in node.kwargs]
+        return node
+
+    def visit_Filter(self, node: nodes.Filter) ->nodes.Node:
+        """Optimize filter nodes."""
+        node.node = self.visit(node.node)
+        node.args = [self.visit(arg) for arg in node.args]
+        node.kwargs = [(key, self.visit(value)) for key, value in node.kwargs]
+        return node
+
+    def visit_Test(self, node: nodes.Test) ->nodes.Node:
+        """Optimize test nodes."""
+        node.node = self.visit(node.node)
+        node.args = [self.visit(arg) for arg in node.args]
+        node.kwargs = [(key, self.visit(value)) for key, value in node.kwargs]
+        return node
+
+    def visit_CondExpr(self, node: nodes.CondExpr) ->nodes.Node:
+        """Optimize conditional expression nodes."""
+        node.test = self.visit(node.test)
+        node.expr1 = self.visit(node.expr1)
+        node.expr2 = self.visit(node.expr2)
+        return node
+
+    def generic_visit(self, node: nodes.Node) ->nodes.Node:
+        """Visit a node."""
+        return super().generic_visit(node)
