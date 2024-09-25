@@ -47,23 +47,31 @@ class Bucket:
 
     def reset(self) ->None:
         """Resets the bucket (unloads the bytecode)."""
-        pass
+        self.code = None
 
     def load_bytecode(self, f: t.BinaryIO) ->None:
         """Loads bytecode from a file or file like object."""
-        pass
+        code = marshal.load(f)
+        if isinstance(code, CodeType):
+            self.code = code
 
     def write_bytecode(self, f: t.IO[bytes]) ->None:
         """Dump the bytecode into the file or file like object passed."""
-        pass
+        if self.code is not None:
+            marshal.dump(self.code, f)
 
     def bytecode_from_string(self, string: bytes) ->None:
         """Load bytecode from bytes."""
-        pass
+        f = BytesIO(string)
+        self.load_bytecode(f)
 
     def bytecode_to_string(self) ->bytes:
         """Return the bytecode as bytes."""
-        pass
+        if self.code is None:
+            return b""
+        f = BytesIO()
+        self.write_bytecode(f)
+        return f.getvalue()
 
 
 class BytecodeCache:
@@ -100,41 +108,43 @@ class BytecodeCache:
         bucket.  If they are not able to find code in the cache for the
         bucket, it must not do anything.
         """
-        pass
+        raise NotImplementedError()
 
     def dump_bytecode(self, bucket: Bucket) ->None:
         """Subclasses have to override this method to write the bytecode
         from a bucket back to the cache.  If it unable to do so it must not
         fail silently but raise an exception.
         """
-        pass
+        raise NotImplementedError()
 
     def clear(self) ->None:
         """Clears the cache.  This method is not used by Jinja but should be
         implemented to allow applications to clear the bytecode cache used
         by a particular environment.
         """
-        pass
+        raise NotImplementedError()
 
     def get_cache_key(self, name: str, filename: t.Optional[t.Union[str]]=None
         ) ->str:
         """Returns the unique hash key for this template name."""
-        pass
+        return sha1(f"{name}|{filename}".encode("utf-8")).hexdigest()
 
     def get_source_checksum(self, source: str) ->str:
         """Returns a checksum for the source."""
-        pass
+        return sha1(source.encode("utf-8")).hexdigest()
 
     def get_bucket(self, environment: 'Environment', name: str, filename: t
         .Optional[str], source: str) ->Bucket:
         """Return a cache bucket for the given template.  All arguments are
         mandatory but filename may be `None`.
         """
-        pass
+        key = self.get_cache_key(name, filename)
+        checksum = self.get_source_checksum(source)
+        return Bucket(environment, key, checksum)
 
     def set_bucket(self, bucket: Bucket) ->None:
         """Put the bucket into the cache."""
-        pass
+        self.dump_bytecode(bucket)
 
 
 class FileSystemBytecodeCache(BytecodeCache):
@@ -161,6 +171,38 @@ class FileSystemBytecodeCache(BytecodeCache):
             directory = self._get_default_cache_dir()
         self.directory = directory
         self.pattern = pattern
+
+    def _get_default_cache_dir(self) ->str:
+        if sys.platform == 'win32':
+            return os.path.join(tempfile.gettempdir(), 'jinja2_cache')
+        else:
+            return os.path.join(tempfile.gettempdir(), f'jinja2_cache_{os.getuid()}')
+
+    def _get_cache_filename(self, bucket: Bucket) ->str:
+        return os.path.join(self.directory, self.pattern % bucket.key)
+
+    def load_bytecode(self, bucket: Bucket) ->None:
+        filename = self._get_cache_filename(bucket)
+        if os.path.exists(filename):
+            with open(filename, 'rb') as f:
+                bucket.load_bytecode(f)
+
+    def dump_bytecode(self, bucket: Bucket) ->None:
+        filename = self._get_cache_filename(bucket)
+        try:
+            os.makedirs(os.path.dirname(filename), exist_ok=True)
+            with open(filename, 'wb') as f:
+                bucket.write_bytecode(f)
+        except OSError as e:
+            raise OSError(f'Unable to write bytecode cache file: {e}')
+
+    def clear(self) ->None:
+        for filename in os.listdir(self.directory):
+            if fnmatch.fnmatch(filename, self.pattern % '*'):
+                try:
+                    os.remove(os.path.join(self.directory, filename))
+                except OSError:
+                    pass
 
 
 class MemcachedBytecodeCache(BytecodeCache):
@@ -215,3 +257,26 @@ class MemcachedBytecodeCache(BytecodeCache):
         self.prefix = prefix
         self.timeout = timeout
         self.ignore_memcache_errors = ignore_memcache_errors
+
+    def load_bytecode(self, bucket: Bucket) ->None:
+        try:
+            code = self.client.get(self.prefix + bucket.key)
+            if code is not None:
+                bucket.bytecode_from_string(code)
+        except Exception:
+            if not self.ignore_memcache_errors:
+                raise
+
+    def dump_bytecode(self, bucket: Bucket) ->None:
+        try:
+            args = [self.prefix + bucket.key, bucket.bytecode_to_string()]
+            if self.timeout is not None:
+                args.append(self.timeout)
+            self.client.set(*args)
+        except Exception:
+            if not self.ignore_memcache_errors:
+                raise
+
+    def clear(self) ->None:
+        # Memcached doesn't support clearing specific keys, so this is a no-op
+        pass
