@@ -32,7 +32,8 @@ def pass_context(f: F) ->F:
     .. versionadded:: 3.0.0
         Replaces ``contextfunction`` and ``contextfilter``.
     """
-    pass
+    f.jinja_pass_arg = _PassArg.context
+    return f
 
 
 def pass_eval_context(f: F) ->F:
@@ -48,7 +49,8 @@ def pass_eval_context(f: F) ->F:
     .. versionadded:: 3.0.0
         Replaces ``evalcontextfunction`` and ``evalcontextfilter``.
     """
-    pass
+    f.jinja_pass_arg = _PassArg.eval_context
+    return f
 
 
 def pass_environment(f: F) ->F:
@@ -60,7 +62,8 @@ def pass_environment(f: F) ->F:
     .. versionadded:: 3.0.0
         Replaces ``environmentfunction`` and ``environmentfilter``.
     """
-    pass
+    f.jinja_pass_arg = _PassArg.environment
+    return f
 
 
 class _PassArg(enum.Enum):
@@ -71,7 +74,8 @@ class _PassArg(enum.Enum):
 
 def internalcode(f: F) ->F:
     """Marks the function as internally used"""
-    pass
+    internal_code.add(f.__code__)
+    return f
 
 
 def is_undefined(obj: t.Any) ->bool:
@@ -86,7 +90,8 @@ def is_undefined(obj: t.Any) ->bool:
                 return default
             return var
     """
-    pass
+    from .runtime import Undefined
+    return isinstance(obj, Undefined)
 
 
 def consume(iterable: t.Iterable[t.Any]) ->None:
