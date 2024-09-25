@@ -45,32 +45,39 @@ class FrameSymbolVisitor(NodeVisitor):
     def visit_Name(self, node: nodes.Name, store_as_param: bool=False, **
         kwargs: t.Any) ->None:
         """All assignments to names go through this function."""
-        pass
+        if node.ctx == 'store':
+            if store_as_param:
+                self.symbols.loads[node.name] = VAR_LOAD_PARAMETER
+            self.symbols.stores.add(node.name)
+        elif node.ctx == 'param':
+            self.symbols.loads[node.name] = VAR_LOAD_PARAMETER
 
     def visit_Assign(self, node: nodes.Assign, **kwargs: t.Any) ->None:
         """Visit assignments in the correct order."""
-        pass
+        self.visit(node.node, **kwargs)
+        self.visit(node.target, **kwargs)
 
     def visit_For(self, node: nodes.For, **kwargs: t.Any) ->None:
         """Visiting stops at for blocks.  However the block sequence
         is visited as part of the outer scope.
         """
-        pass
+        self.visit(node.iter, **kwargs)
+        self.visit(node.target, store_as_param=True, **kwargs)
 
     def visit_AssignBlock(self, node: nodes.AssignBlock, **kwargs: t.Any
         ) ->None:
         """Stop visiting at block assigns."""
-        pass
+        self.visit(node.target, **kwargs)
 
     def visit_Scope(self, node: nodes.Scope, **kwargs: t.Any) ->None:
         """Stop visiting at scopes."""
-        pass
+        # We don't need to do anything here, as we're stopping at scopes
 
     def visit_Block(self, node: nodes.Block, **kwargs: t.Any) ->None:
         """Stop visiting at blocks."""
-        pass
+        # We don't need to do anything here, as we're stopping at blocks
 
     def visit_OverlayScope(self, node: nodes.OverlayScope, **kwargs: t.Any
         ) ->None:
         """Do not visit into overlay scopes."""
-        pass
+        # We don't need to do anything here, as we're not visiting into overlay scopes
