@@ -62,7 +62,10 @@ class Extension:
 
     def bind(self, environment: Environment) ->'Extension':
         """Create a copy of this extension bound to another environment."""
-        pass
+        rv = type(self)(environment)
+        rv.__dict__.update(self.__dict__)
+        rv.environment = environment
+        return rv
 
     def preprocess(self, source: str, name: t.Optional[str], filename: t.
         Optional[str]=None) ->str:
@@ -70,7 +73,7 @@ class Extension:
         preprocess the source.  The `filename` is optional.  The return value
         must be the preprocessed source.
         """
-        pass
+        return source
 
     def filter_stream(self, stream: 'TokenStream') ->t.Union['TokenStream',
         t.Iterable['Token']]:
@@ -79,7 +82,7 @@ class Extension:
         :class:`~jinja2.lexer.Token`\\s, but it doesn't have to return a
         :class:`~jinja2.lexer.TokenStream`.
         """
-        pass
+        return stream
 
     def parse(self, parser: 'Parser') ->t.Union[nodes.Node, t.List[nodes.Node]
         ]:
@@ -88,7 +91,7 @@ class Extension:
         is the name token that matched.  This method has to return one or a
         list of multiple nodes.
         """
-        pass
+        raise NotImplementedError(f'{self.__class__.__name__}.parse() must be implemented')
 
     def attr(self, name: str, lineno: t.Optional[int]=None
         ) ->nodes.ExtensionAttribute:
@@ -99,7 +102,7 @@ class Extension:
 
             self.attr('_my_attribute', lineno=lineno)
         """
-        pass
+        return nodes.ExtensionAttribute(self.identifier, name, lineno=lineno)
 
     def call_method(self, name: str, args: t.Optional[t.List[nodes.Expr]]=
         None, kwargs: t.Optional[t.List[nodes.Keyword]]=None, dyn_args: t.
@@ -108,7 +111,12 @@ class Extension:
         """Call a method of the extension.  This is a shortcut for
         :meth:`attr` + :class:`jinja2.nodes.Call`.
         """
-        pass
+        if args is None:
+            args = []
+        if kwargs is None:
+            kwargs = []
+        return nodes.Call(self.attr(name, lineno=lineno), args, kwargs,
+                          dyn_args, dyn_kwargs, lineno=lineno)
 
 
 class InternationalizationExtension(Extension):
