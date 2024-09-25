@@ -22,7 +22,7 @@ class TrackingCodeGenerator(CodeGenerator):
 
     def enter_frame(self, frame: Frame) ->None:
         """Remember all undeclared identifiers."""
-        pass
+        self.undeclared_identifiers.update(frame.identifiers.undeclared)
 
 
 def find_undeclared_variables(ast: nodes.Template) ->t.Set[str]:
@@ -44,7 +44,9 @@ def find_undeclared_variables(ast: nodes.Template) ->t.Set[str]:
        :exc:`TemplateAssertionError` during compilation and as a matter of
        fact this function can currently raise that exception as well.
     """
-    pass
+    codegen = TrackingCodeGenerator(ast.environment)
+    codegen.visit(ast)
+    return codegen.undeclared_identifiers
 
 
 _ref_types = nodes.Extends, nodes.FromImport, nodes.Import, nodes.Include
@@ -68,4 +70,17 @@ def find_referenced_templates(ast: nodes.Template) ->t.Iterator[t.Optional[str]
     This function is useful for dependency tracking.  For example if you want
     to rebuild parts of the website after a layout template has changed.
     """
-    pass
+    for node in ast.find_all(_ref_types):
+        if isinstance(node, nodes.Extends):
+            if isinstance(node.template, nodes.Const):
+                yield node.template.value
+            else:
+                yield None
+        elif isinstance(node, nodes.Include):
+            if isinstance(node.template, nodes.Const):
+                yield node.template.value
+            else:
+                yield None
+        elif isinstance(node, (nodes.Import, nodes.FromImport)):
+            if isinstance(node.template, nodes.Const):
+                yield node.template.value
